@@ -1,88 +1,99 @@
-import ComponentsBuilder from './components.js';
-import { constants } from './constants.js';
+import ComponentsBuilder from "./components.js";
+import { constants } from "./constants.js";
 
 export default class TerminalController {
-    #usersColors = new Map();
+  #usersCollors = new Map();
 
-    constructor() { }
+  constructor() {}
 
-    #pickColor() {
-        return `#${((1 << 24) * Math.random() | 0).toString(16)}-fg`;
-    }
+  #pickCollor() {
+    return `#${(((1 << 24) * Math.random()) | 0).toString(16)}-fg`;
+  }
 
-    #getUserColor(userName) {
-        if (this.#usersColors.has(userName))
-            return this.#usersColors.get(userName)
+  #getUserCollor(userName) {
+    if (this.#usersCollors.has(userName))
+      return this.#usersCollors.get(userName);
 
-        const color = this.#pickColor();
-        this.#usersColors.set(userName, color);
+    const collor = this.#pickCollor();
+    this.#usersCollors.set(userName, collor);
 
-        return color;
-    }
+    return collor;
+  }
 
-    #onInputReceived(eventEmitter) {
-        return function () {
-            const message = this.getValue();
-            console.log(message);
-            this.clearValue();
-        }
-    }
+  #onInputReceived(eventEmitter) {
+    return function () {
+      const message = this.getValue();
+      eventEmitter.emit(constants.events.app.MESSAGE_SENT, message);
+      this.clearValue();
+    };
+  }
 
-    #onMessageReceived({ screen, chat }) {
-        return msg => {
-            const { userName, message } = msg;
-            const color = this.#getUserColor(userName);
+  #onMessageReceived({ screen, chat }) {
+    return (msg) => {
+      const { userName, message } = msg;
+      const collor = this.#getUserCollor(userName);
 
-            chat.addItem(`{${color}}{bold}${userName}{/}: ${message}`);
-            screen.render();
-        }
-    }
+      chat.addItem(`{${collor}}{bold}${userName}{/}: ${message}`);
 
-    #onLogChanged({ screen, status }) {
-        return msg => {
-            const [userName] = msg.split(/\s/);
-            const color = this.#getUserColor(userName);
+      screen.render();
+    };
+  }
 
-            activityLog.addItem(`{${color}}{bold}${msg.toString()}{/}`);
-            screen.render();
-        }
-    }
+  #onLogChanged({ screen, activityLog }) {
+    return (msg) => {
+      // erickwendel left
+      // erickwendel join
 
-    #onStatusChanged({ screen, status }) {
-        return users => {
+      const [userName] = msg.split(/\s/);
+      const collor = this.#getUserCollor(userName);
+      activityLog.addItem(`{${collor}}{bold}${msg.toString()}{/}`);
 
-            const { content } = status.items.shift();
-            status.clearItems();
-            status.addItem(content);
+      screen.render();
+    };
+  }
+  #onStatusChanged({ screen, status }) {
+    // [ 'erickwendel', 'mariazinha']
+    return (users) => {
+      // vamos pegar o primeiro elemento da lista
+      const { content } = status.items.shift();
+      status.clearItems();
+      status.addItem(content);
 
-            users.forEach(userName => {
-                const color = this.#getUserColor(userName);
-                status.addItem(`{${color}}{bold}${userName}{/}`)
-            });
+      users.forEach((userName) => {
+        const collor = this.#getUserCollor(userName);
+        status.addItem(`{${collor}}{bold}${userName}{/}`);
+      });
 
-            screen.render();
-        }
-    }
+      screen.render();
+    };
+  }
+  #registerEvents(eventEmitter, components) {
+    eventEmitter.on(
+      constants.events.app.MESSAGE_RECEIVED,
+      this.#onMessageReceived(components)
+    );
+    eventEmitter.on(
+      constants.events.app.ACTIVITYLOG_UPDATED,
+      this.#onLogChanged(components)
+    );
+    eventEmitter.on(
+      constants.events.app.STATUS_UPDATED,
+      this.#onStatusChanged(components)
+    );
+  }
+  async initializeTable(eventEmitter) {
+    const components = new ComponentsBuilder()
+      .setScreen({ title: "HackerChat - Erick Wendel" })
+      .setLayoutComponent()
+      .setInputComponent(this.#onInputReceived(eventEmitter))
+      .setChatComponent()
+      .setActivityLogComponent()
+      .setStatusComponent()
+      .build();
 
-    #registerEvents(eventEmitter, components) {
-        eventEmitter.on(constants.events.app.MESSAGE_RECEIVED, this.#onMessageReceived(components));
-        eventEmitter.on(constants.events.app.ACTIVITYLOG_UPDATED, this.#onLogChanged(components));
-        eventEmitter.on(constants.events.app.STATUS_UPDATED, this.#onStatusChanged(components));
-    }
+    this.#registerEvents(eventEmitter, components);
 
-    async initializeTable(eventEmitter) {
-        const components = new ComponentsBuilder()
-            .setScreen({ title: 'HackerChat - Jonatha Silveira' })
-            .setLayoutComponent()
-            .setInputComponent(this.#onInputReceived(eventEmitter))
-            .setChatComponent()
-            .setActivityLogComponent()
-            .setStatusComponent()
-            .build()
-
-        this.#registerEvents(eventEmitter, components);
-
-        components.input.focus();
-        components.screen.render();
-    }
+    components.input.focus();
+    components.screen.render();
+  }
 }
